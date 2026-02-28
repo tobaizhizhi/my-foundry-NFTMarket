@@ -13,7 +13,7 @@ error NFTMarketplace__MoneyIsNotEnoughToBuy();
 error NFTMarketplace__NotListingSeller();
 error NFTMarketplace__ListingExpired();
 
-contract NFTMarketplaceData{
+contract NFTMarketplaceData {
     enum OrderType {
         FixedPrice,
         Offer
@@ -29,8 +29,8 @@ contract NFTMarketplaceData{
         OrderType orderType;
     }
 
-    mapping(address=>mapping(uint256=>Listing)) public listings;
-    mapping(uint256=>Listing) public orderIdToListings;
+    mapping(address => mapping(uint256 => Listing)) public listings;
+    mapping(uint256 => Listing) public orderIdToListings;
     uint256 public nextOrderId;
 
     event NFTListed(
