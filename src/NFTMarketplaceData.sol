@@ -43,10 +43,7 @@ contract NFTMarketplaceData {
     );
 
     event ListingCancelled(
-        address indexed nftContract,
-        uint256 indexed tokenId,
-        uint256 indexed orderId,
-        address seller
+        address indexed nftContract, uint256 indexed tokenId, uint256 indexed orderId, address seller
     );
 
     event NFTSold(
