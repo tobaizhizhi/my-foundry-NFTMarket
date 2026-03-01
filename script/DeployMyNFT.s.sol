@@ -6,6 +6,8 @@ import "../src/MyNFT.sol";
 
 contract DeployMyNFT is Script {
     function run() external {
+        require(block.chainid == 11155111, "Only deploy to Sepolia Testnet!");
+
         uint256 deployPrivateKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployPrivateKey);
