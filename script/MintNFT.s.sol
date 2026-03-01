@@ -5,10 +5,8 @@ import "forge-std/Script.sol";
 import "../src/MyNFT.sol";
 
 contract MintNFT is Script {
-    address public constant MY_NFT_ADDRESS =
-        0x056681Aebe519ed484C4cDaBCD9323F536fe0034;
-    address public constant RECIPIENT =
-        0x6f933fdc96Ee0BDEF306621C739ffdFc846c681a;
+    address public constant MY_NFT_ADDRESS = 0x056681Aebe519ed484C4cDaBCD9323F536fe0034;
+    address public constant RECIPIENT = 0x6f933fdc96Ee0BDEF306621C739ffdFc846c681a;
 
     function run() external {
         require(block.chainid == 11155111, "Only run on Sepolia!");
@@ -17,18 +15,13 @@ contract MintNFT is Script {
         vm.startBroadcast(deployPrivateKey);
         MyNFT myNFT = MyNFT(MY_NFT_ADDRESS);
 
-        string
-            memory tokenURI0 = "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
+        string memory tokenURI0 = "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
         myNFT.mint(RECIPIENT, tokenURI0);
         console.log("Mint successful:tokenId=0");
 
         string[] memory tokenURIs = new string[](2);
-        tokenURIs[
-            0
-        ] = "ipfs://bafkreigip7xd5mfyyfe2bpd7bsep2uqqvbqw3lb24gabnatmizpsk45kae/1.json";
-        tokenURIs[
-            1
-        ] = "ipfs://bafkreiflar37xm4k4iq6y3ahpo55cagl3pqr7gulmfkpb3gabjvr6gusb4/2.json";
+        tokenURIs[0] = "ipfs://bafkreigip7xd5mfyyfe2bpd7bsep2uqqvbqw3lb24gabnatmizpsk45kae/1.json";
+        tokenURIs[1] = "ipfs://bafkreiflar37xm4k4iq6y3ahpo55cagl3pqr7gulmfkpb3gabjvr6gusb4/2.json";
         myNFT.batchMint(RECIPIENT, 2, tokenURIs);
         console.log("Batch mint successful:tokenId=1,2");
 

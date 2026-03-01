@@ -5,11 +5,9 @@ import "forge-std/Script.sol";
 import "../src/MyNFT.sol";
 
 contract CallNFTsByOwner is Script {
-    address public constant NFT_CONTRACT =
-        0x056681Aebe519ed484C4cDaBCD9323F536fe0034;
+    address public constant NFT_CONTRACT = 0x056681Aebe519ed484C4cDaBCD9323F536fe0034;
 
-    address public constant YOUR_WALLET =
-        0x6f933fdc96Ee0BDEF306621C739ffdFc846c681a;
+    address public constant YOUR_WALLET = 0x6f933fdc96Ee0BDEF306621C739ffdFc846c681a;
 
     function run() public view {
         MyNFT nft = MyNFT(NFT_CONTRACT);
