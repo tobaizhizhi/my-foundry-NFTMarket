@@ -11,12 +11,9 @@ contract MyNFTTest is Test {
     address public bob = address(3);
     address public zeroAddr = address(0);
 
-    string public constant TEST_URI1 =
-        "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
-    string public constant TEST_URI2 =
-        "ipfs://bafkreigip7xd5mfyyfe2bpd7bsep2uqqvbqw3lb24gabnatmizpsk45kae/1.json";
-    string public constant TEST_URI3 =
-        "ipfs://bafkreiflar37xm4k4iq6y3ahpo55cagl3pqr7gulmfkpb3gabjvr6gusb4/2.json";
+    string public constant TEST_URI1 = "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
+    string public constant TEST_URI2 = "ipfs://bafkreigip7xd5mfyyfe2bpd7bsep2uqqvbqw3lb24gabnatmizpsk45kae/1.json";
+    string public constant TEST_URI3 = "ipfs://bafkreiflar37xm4k4iq6y3ahpo55cagl3pqr7gulmfkpb3gabjvr6gusb4/2.json";
     string public constant EMPTY_URI = "";
 
     function setUp() public {

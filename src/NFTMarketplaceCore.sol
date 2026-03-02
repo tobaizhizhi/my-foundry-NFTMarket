@@ -6,12 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./NFTMarketplaceData.sol";
 
 contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
-    function listNFT(
-        address nftContract,
-        uint256 tokenId,
-        uint256 priceWei,
-        uint256 expireDuration
-    ) external {
+    function listNFT(address nftContract, uint256 tokenId, uint256 priceWei, uint256 expireDuration) external {
         if (nftContract == address(0)) {
             revert NFTMarketplace__InvalidNFTContract();
         }
@@ -20,9 +15,8 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
         }
         if (priceWei <= 0) revert NFTMarketplace__PriceMustBeGreaterThanZero();
 
-        bool isApproved = ERC721(nftContract).getApproved(tokenId) ==
-            address(this) ||
-            ERC721(nftContract).isApprovedForAll(msg.sender, address(this));
+        bool isApproved = ERC721(nftContract).getApproved(tokenId) == address(this)
+            || ERC721(nftContract).isApprovedForAll(msg.sender, address(this));
         if (!isApproved) revert NFTMarketplace__NFTNotApprovedForMarket();
 
         uint256 orderId = nextOrderId;
@@ -44,14 +38,7 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
             nextOrderId++;
         }
 
-        emit NFTListed(
-            nftContract,
-            tokenId,
-            orderId,
-            msg.sender,
-            priceWei,
-            block.timestamp
-        );
+        emit NFTListed(nftContract, tokenId, orderId, msg.sender, priceWei, block.timestamp);
     }
 
     function cancelListing(address nftContract, uint256 tokenId) external {
@@ -64,18 +51,10 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
         listing.isActive = false;
         orderIdToListings[listing.orderId].isActive = false;
 
-        emit ListingCancelled(
-            nftContract,
-            tokenId,
-            listing.orderId,
-            msg.sender
-        );
+        emit ListingCancelled(nftContract, tokenId, listing.orderId, msg.sender);
     }
 
-    function buyNFT(
-        address nftContract,
-        uint256 tokenId
-    ) external payable nonReentrant {
+    function buyNFT(address nftContract, uint256 tokenId) external payable nonReentrant {
         Listing storage listing = listings[nftContract][tokenId];
         address seller = listing.seller;
         uint256 priceWei = listing.priceWei;
@@ -94,52 +73,30 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
         listing.isActive = false;
         orderIdToListings[listing.orderId].isActive = false;
 
-        (bool okSeller, ) = payable(seller).call{value: priceWei, gas: 2300}(
-            ""
-        );
+        (bool okSeller,) = payable(seller).call{value: priceWei, gas: 2300}("");
         if (!okSeller) revert NFTMarketplace__SellerTransferFailed();
         if (msg.value > priceWei) {
-            (bool okBuyer, ) = payable(msg.sender).call{
-                value: msg.value - priceWei,
-                gas: 2300
-            }("");
+            (bool okBuyer,) = payable(msg.sender).call{value: msg.value - priceWei, gas: 2300}("");
             if (!okBuyer) revert NFTMarketplace__BuyerTransferFailed();
         }
         ERC721(nftContract).safeTransferFrom(seller, msg.sender, tokenId);
 
-        emit NFTSold(
-            nftContract,
-            tokenId,
-            listing.orderId,
-            seller,
-            msg.sender,
-            priceWei,
-            block.timestamp
-        );
+        emit NFTSold(nftContract, tokenId, listing.orderId, seller, msg.sender, priceWei, block.timestamp);
     }
 
-    function getListingByOrderId(
-        uint256 orderId
-    ) external view returns (Listing memory) {
+    function getListingByOrderId(uint256 orderId) external view returns (Listing memory) {
         return orderIdToListings[orderId];
     }
 
-    function getListing(
-        address nft,
-        uint256 tokenId
-    ) external view returns (Listing memory) {
+    function getListing(address nft, uint256 tokenId) external view returns (Listing memory) {
         return listings[nft][tokenId];
     }
 
-    function getActiveListingsByNFTContract(
-        address nftContract
-    ) external view returns (Listing[] memory) {
+    function getActiveListingsByNFTContract(address nftContract) external view returns (Listing[] memory) {
         //TODO: 改为链下
     }
 
-    function getListingsBySeller(
-        address seller
-    ) external view returns (Listing[] memory) {
+    function getListingsBySeller(address seller) external view returns (Listing[] memory) {
         //TODO改为链下
     }
 }
