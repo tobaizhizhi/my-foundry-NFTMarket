@@ -16,7 +16,7 @@ contract MintNFT is Script {
         MyNFT myNFT = MyNFT(MY_NFT_ADDRESS);
 
         string memory tokenURI0 = "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
-        myNFT.mint(RECIPIENT, tokenURI0);
+        myNFT.mintCommonNFT(RECIPIENT, tokenURI0);
         console.log("Mint successful:tokenId=0");
 
         string[] memory tokenURIs = new string[](2);
@@ -26,8 +26,8 @@ contract MintNFT is Script {
         console.log("Batch mint successful:tokenId=1,2");
 
         uint256 nextId = myNFT.nextTokenId();
-        console.log("nextTokenId:", nextId); // 应输出3（0+2=3）
-        console.log("tokenId=0 URI:", myNFT.tokenURI(0)); // 输出你的IPFS链接
+        console.log("nextTokenId:", nextId);
+        console.log("tokenId=0 URI:", myNFT.tokenURI(0));
 
         vm.stopBroadcast();
     }
