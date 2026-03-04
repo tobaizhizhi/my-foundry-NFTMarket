@@ -175,7 +175,10 @@ contract MyNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
      * @param newURI New metadata URI (cannot be empty)
      */
     function updateTokenURI(uint256 tokenId, string calldata newURI) external {
-        ownerOf(tokenId);
+        try this.ownerOf(tokenId) {}
+        catch {
+            revert MyNFT__TokenNotExists();
+        }
         if (bytes(newURI).length == 0) revert MyNFT__URIEmpty();
         if (ownerOf(tokenId) != msg.sender && msg.sender != owner()) {
             revert MyNFT__NotTokenOwnerOrContractOwner();
@@ -212,7 +215,10 @@ contract MyNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
      * @param tokenId ID of the Ticket NFT to redeem
      */
     function useTicket(uint256 tokenId) external {
-        ownerOf(tokenId);
+        try this.ownerOf(tokenId) {}
+        catch {
+            revert MyNFT__TokenNotExists();
+        }
 
         TicketAttributes storage attr = ticketAttributes[tokenId];
         if (block.timestamp > attr.expireTime) revert MyNFT__TicketExpired();
@@ -230,8 +236,11 @@ contract MyNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
     }
 
     function tokenURI(uint256 tokenId) public view override(ERC721) returns (string memory) {
-        ownerOf(tokenId);
-        return _tokenURIs[tokenId];
+        try this.ownerOf(tokenId) {
+            return _tokenURIs[tokenId];
+        } catch {
+            revert MyNFT__TokenNotExists();
+        }
     }
 
     // ==== Inherited function overrides (no additional comments needed) ====

@@ -23,7 +23,7 @@ contract MyNFTTest is Test {
 
     function test_Mint_Success() public {
         vm.prank(owner);
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
 
         assertEq(myNFT.ownerOf(0), alice);
         assertEq(myNFT.tokenURI(0), TEST_URI1);
@@ -33,19 +33,19 @@ contract MyNFTTest is Test {
     function test_Mint_OnlyOwner() public {
         vm.prank(alice);
         vm.expectRevert();
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
     }
 
     function test_Mint_InvalidRecipient() public {
         vm.prank(owner);
         vm.expectRevert(MyNFT__InvalidRecipient.selector);
-        myNFT.mint(zeroAddr, TEST_URI1);
+        myNFT.mintCommonNFT(zeroAddr, TEST_URI1);
     }
 
     function test_Mint_URIEmpty() public {
         vm.prank(owner);
         vm.expectRevert(MyNFT__URIEmpty.selector);
-        myNFT.mint(alice, EMPTY_URI);
+        myNFT.mintCommonNFT(alice, EMPTY_URI);
     }
 
     function test_BatchMint_Success() public {
@@ -105,7 +105,7 @@ contract MyNFTTest is Test {
 
     function test_UpdateTokenURI_TokenOwnerSuccess() public {
         vm.prank(owner);
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
 
         vm.prank(alice);
         myNFT.updateTokenURI(0, TEST_URI2);
@@ -115,7 +115,7 @@ contract MyNFTTest is Test {
 
     function test_UpdateTokenURI_ContractOwnerSuccess() public {
         vm.prank(owner);
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
 
         vm.prank(owner);
         myNFT.updateTokenURI(0, TEST_URI2);
@@ -125,7 +125,7 @@ contract MyNFTTest is Test {
 
     function test_UpdateTokenURI_UnrelatedUserFail() public {
         vm.prank(owner);
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
 
         vm.prank(bob);
         vm.expectRevert(MyNFT__NotTokenOwnerOrContractOwner.selector);
@@ -134,7 +134,7 @@ contract MyNFTTest is Test {
 
     function test_UpdateTokenURI_TokenNotExist() public {
         vm.prank(owner);
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
 
         vm.prank(owner);
         vm.expectRevert(MyNFT__TokenNotExists.selector);
@@ -143,7 +143,7 @@ contract MyNFTTest is Test {
 
     function test_UpdateTokenURI_URIEmpty() public {
         vm.prank(owner);
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
 
         vm.prank(owner);
         vm.expectRevert(MyNFT__URIEmpty.selector);
@@ -152,9 +152,9 @@ contract MyNFTTest is Test {
 
     function test_GetNFTsByOwner_Success() public {
         vm.startPrank(owner);
-        myNFT.mint(alice, TEST_URI1);
-        myNFT.mint(alice, TEST_URI2);
-        myNFT.mint(alice, TEST_URI3);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI2);
+        myNFT.mintCommonNFT(alice, TEST_URI3);
         vm.stopPrank();
 
         uint256[] memory tokenIds = myNFT.getNFTsByOwner(alice);
@@ -172,7 +172,7 @@ contract MyNFTTest is Test {
 
     function test_TokenURI_Success() public {
         vm.prank(owner);
-        myNFT.mint(alice, TEST_URI1);
+        myNFT.mintCommonNFT(alice, TEST_URI1);
 
         assertEq(myNFT.tokenURI(0), TEST_URI1);
     }
