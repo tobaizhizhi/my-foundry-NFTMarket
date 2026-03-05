@@ -15,9 +15,11 @@ error MyNFT__TicketExpired();
 error MyNFT__InvalidNFTType();
 error MyNFT__TicketAlreadyUsed();
 error MyNFT__NotOrganizer();
+error MyNFT__CommonNFTTypeCantUpdate();
 
 /**
  * @title MyNFT
+ * @author tobaizhizhi
  * @notice Dual-mode ERC721 contract for Common collectible NFTs and functional Ticket NFTs
  * @dev Inherits ERC721Enumerable (for owner NFT enumeration) and ReentrancyGuard (anti-reentrancy protection)
  */
@@ -170,7 +172,7 @@ contract MyNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
 
     /**
      * @notice Update metadata URI of an existing NFT
-     * @dev Only callable by NFT owner or contract owner
+     * @dev Only callable by NFT owner or contract owner,only CommonNFT can be update
      * @param tokenId ID of the NFT to update
      * @param newURI New metadata URI (cannot be empty)
      */
@@ -178,6 +180,9 @@ contract MyNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
         try this.ownerOf(tokenId) {}
         catch {
             revert MyNFT__TokenNotExists();
+        }
+        if (tokenType[tokenId] == NFTType.Ticket) {
+            revert MyNFT__CommonNFTTypeCantUpdate();
         }
         if (bytes(newURI).length == 0) revert MyNFT__URIEmpty();
         if (ownerOf(tokenId) != msg.sender && msg.sender != owner()) {
@@ -219,13 +224,13 @@ contract MyNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
         catch {
             revert MyNFT__TokenNotExists();
         }
-
-        TicketAttributes storage attr = ticketAttributes[tokenId];
-        if (block.timestamp > attr.expireTime) revert MyNFT__TicketExpired();
-        if (attr.isUsed) revert MyNFT__TicketAlreadyUsed();
         if (tokenType[tokenId] != NFTType.Ticket) {
             revert MyNFT__InvalidNFTType();
         }
+        TicketAttributes storage attr = ticketAttributes[tokenId];
+        if (block.timestamp > attr.expireTime) revert MyNFT__TicketExpired();
+        if (attr.isUsed) revert MyNFT__TicketAlreadyUsed();
+
         if (msg.sender != attr.organizer && msg.sender != owner()) {
             revert MyNFT__NotOrganizer();
         }
@@ -241,6 +246,17 @@ contract MyNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
         } catch {
             revert MyNFT__TokenNotExists();
         }
+    }
+
+    function getTicketAttributes(uint256 tokenId) external view returns (TicketAttributes memory) {
+        try this.ownerOf(tokenId) {}
+        catch {
+            revert MyNFT__TokenNotExists();
+        }
+        if (tokenType[tokenId] != NFTType.Ticket) {
+            revert MyNFT__InvalidNFTType();
+        }
+        return ticketAttributes[tokenId];
     }
 
     // ==== Inherited function overrides (no additional comments needed) ====
