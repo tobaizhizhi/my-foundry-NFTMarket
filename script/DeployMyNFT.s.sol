@@ -2,7 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Script.sol";
-import "../src/MyNFT.sol";
+import "../src/CommonNFT.sol";
+import "../src/TicketNFT.sol";
 
 contract DeployMyNFT is Script {
     function run() external {
@@ -11,9 +12,11 @@ contract DeployMyNFT is Script {
         uint256 deployPrivateKey = vm.envUint("PRIVATE_KEY");
 
         vm.startBroadcast(deployPrivateKey);
-        MyNFT myNFT = new MyNFT();
+        CommonNFT commonNFT = new CommonNFT();
+        TicketNFT ticketNFT = new TicketNFT();
         vm.stopBroadcast();
 
-        console.log("MyNFT contract address: ", address(myNFT));
+        console.log("CommonNFT contract address: ", address(commonNFT));
+        console.log("TicketNFT contract address: ", address(ticketNFT));
     }
 }
