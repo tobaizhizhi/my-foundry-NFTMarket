@@ -2,9 +2,7 @@
 pragma solidity ^0.8.20;
 
 interface ITicketNFT {
-    function ticketAttributes(
-        uint256 tokenId
-    )
+    function ticketAttributes(uint256 tokenId)
         external
         view
         returns (

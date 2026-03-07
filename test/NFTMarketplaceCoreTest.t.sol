@@ -16,8 +16,7 @@ contract NFTMarketplaceCoreTest is Test {
     address public buyer = address(2);
     address public organizer = address(3);
 
-    string public constant TEST_URI =
-        "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
+    string public constant TEST_URI = "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
 
     function setUp() public {
         marketplace = new NFTMarketplaceCore();
