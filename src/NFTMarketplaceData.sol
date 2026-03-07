@@ -12,6 +12,11 @@ error NFTMarketplace__BuyerTransferFailed();
 error NFTMarketplace__MoneyIsNotEnoughToBuy();
 error NFTMarketplace__NotListingSeller();
 error NFTMarketplace__ListingExpired();
+error NFTMarketplace__InvalidExpireDuration();
+error NFTMarketplace__TicketAlreadyUsed();
+error NFTMarketplace__TicketExpiredForTrade();
+error NFTMarketplace__TicketResaleNotAllowed();
+error NFTMarketplace__TicketPriceExceedsMaxResale();
 
 contract NFTMarketplaceData {
     enum OrderType {
@@ -31,6 +36,7 @@ contract NFTMarketplaceData {
 
     mapping(address => mapping(uint256 => Listing)) public listings;
     mapping(uint256 => Listing) public orderIdToListings;
+    mapping(address => bool) public isTicketContract;
     uint256 public nextOrderId;
 
     event NFTListed(
@@ -43,7 +49,10 @@ contract NFTMarketplaceData {
     );
 
     event ListingCancelled(
-        address indexed nftContract, uint256 indexed tokenId, uint256 indexed orderId, address seller
+        address indexed nftContract,
+        uint256 indexed tokenId,
+        uint256 indexed orderId,
+        address seller
     );
 
     event NFTSold(
@@ -55,4 +64,6 @@ contract NFTMarketplaceData {
         uint256 priceWei,
         uint256 timestamp
     );
+
+    event TicketContractUpdated(address indexed nftContract, bool enabled);
 }

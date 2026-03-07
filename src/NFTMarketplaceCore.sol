@@ -1,12 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./NFTMarketplaceData.sol";
+import "./interfaces/ITicketNFT.sol";
 
-contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
-    function listNFT(address nftContract, uint256 tokenId, uint256 priceWei, uint256 expireDuration) external {
+contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
+    constructor() Ownable(msg.sender) {}
+
+    function setTicketContract(
+        address nftContract,
+        bool enabled
+    ) external onlyOwner {
+        if (nftContract == address(0)) {
+            revert NFTMarketplace__InvalidNFTContract();
+        }
+
+        isTicketContract[nftContract] = enabled;
+        emit TicketContractUpdated(nftContract, enabled);
+    }
+
+    function listNFT(
+        address nftContract,
+        uint256 tokenId,
+        uint256 priceWei,
+        uint256 expireDuration
+    ) external {
         if (nftContract == address(0)) {
             revert NFTMarketplace__InvalidNFTContract();
         }
@@ -15,9 +36,13 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
         }
         if (priceWei <= 0) revert NFTMarketplace__PriceMustBeGreaterThanZero();
 
-        bool isApproved = ERC721(nftContract).getApproved(tokenId) == address(this)
-            || ERC721(nftContract).isApprovedForAll(msg.sender, address(this));
+        bool isApproved = ERC721(nftContract).getApproved(tokenId) ==
+            address(this) ||
+            ERC721(nftContract).isApprovedForAll(msg.sender, address(this));
         if (!isApproved) revert NFTMarketplace__NFTNotApprovedForMarket();
+        if (expireDuration < 1 minutes)
+            revert NFTMarketplace__InvalidExpireDuration();
+        _validateTicketTrade(nftContract, tokenId, priceWei);
 
         uint256 orderId = nextOrderId;
         uint256 expireTime = block.timestamp + expireDuration;
@@ -38,7 +63,14 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
             nextOrderId++;
         }
 
-        emit NFTListed(nftContract, tokenId, orderId, msg.sender, priceWei, block.timestamp);
+        emit NFTListed(
+            nftContract,
+            tokenId,
+            orderId,
+            msg.sender,
+            priceWei,
+            block.timestamp
+        );
     }
 
     function cancelListing(address nftContract, uint256 tokenId) external {
@@ -51,10 +83,18 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
         listing.isActive = false;
         orderIdToListings[listing.orderId].isActive = false;
 
-        emit ListingCancelled(nftContract, tokenId, listing.orderId, msg.sender);
+        emit ListingCancelled(
+            nftContract,
+            tokenId,
+            listing.orderId,
+            msg.sender
+        );
     }
 
-    function buyNFT(address nftContract, uint256 tokenId) external payable nonReentrant {
+    function buyNFT(
+        address nftContract,
+        uint256 tokenId
+    ) external payable nonReentrant {
         Listing storage listing = listings[nftContract][tokenId];
         address seller = listing.seller;
         uint256 priceWei = listing.priceWei;
@@ -69,34 +109,80 @@ contract NFTMarketplaceCore is ReentrancyGuard, NFTMarketplaceData {
         if (ERC721(nftContract).ownerOf(tokenId) != seller) {
             revert NFTMarketplace__SellerNotNFTOwner();
         }
+        _validateTicketTrade(nftContract, tokenId, priceWei);
 
         listing.isActive = false;
         orderIdToListings[listing.orderId].isActive = false;
 
-        (bool okSeller,) = payable(seller).call{value: priceWei, gas: 2300}("");
+        (bool okSeller, ) = payable(seller).call{value: priceWei}("");
         if (!okSeller) revert NFTMarketplace__SellerTransferFailed();
         if (msg.value > priceWei) {
-            (bool okBuyer,) = payable(msg.sender).call{value: msg.value - priceWei, gas: 2300}("");
+            (bool okBuyer, ) = payable(msg.sender).call{
+                value: msg.value - priceWei
+            }("");
             if (!okBuyer) revert NFTMarketplace__BuyerTransferFailed();
         }
         ERC721(nftContract).safeTransferFrom(seller, msg.sender, tokenId);
 
-        emit NFTSold(nftContract, tokenId, listing.orderId, seller, msg.sender, priceWei, block.timestamp);
+        emit NFTSold(
+            nftContract,
+            tokenId,
+            listing.orderId,
+            seller,
+            msg.sender,
+            priceWei,
+            block.timestamp
+        );
     }
 
-    function getListingByOrderId(uint256 orderId) external view returns (Listing memory) {
+    function getListingByOrderId(
+        uint256 orderId
+    ) external view returns (Listing memory) {
         return orderIdToListings[orderId];
     }
 
-    function getListing(address nft, uint256 tokenId) external view returns (Listing memory) {
+    function getListing(
+        address nft,
+        uint256 tokenId
+    ) external view returns (Listing memory) {
         return listings[nft][tokenId];
     }
 
-    function getActiveListingsByNFTContract(address nftContract) external view returns (Listing[] memory) {
+    function getActiveListingsByNFTContract(
+        address nftContract
+    ) external view returns (Listing[] memory) {
         //TODO: 改为链下
     }
 
-    function getListingsBySeller(address seller) external view returns (Listing[] memory) {
+    function getListingsBySeller(
+        address seller
+    ) external view returns (Listing[] memory) {
         //TODO改为链下
+    }
+
+    function _validateTicketTrade(
+        address nftContract,
+        uint256 tokenId,
+        uint256 priceWei
+    ) internal view {
+        if (!isTicketContract[nftContract]) {
+            return;
+        }
+
+        (
+            ,
+            uint256 expireTime,
+            bool isUsed,
+            ,
+            bool resaleAllowed,
+            uint256 maxResalePrice
+        ) = ITicketNFT(nftContract).ticketAttributes(tokenId);
+
+        if (isUsed) revert NFTMarketplace__TicketAlreadyUsed();
+        if (block.timestamp > expireTime)
+            revert NFTMarketplace__TicketExpiredForTrade();
+        if (!resaleAllowed) revert NFTMarketplace__TicketResaleNotAllowed();
+        if (priceWei > maxResalePrice)
+            revert NFTMarketplace__TicketPriceExceedsMaxResale();
     }
 }
