@@ -18,8 +18,7 @@ contract NFTMarketplaceCoreTest is Test {
     address public outsider = address(4);
     address public zeroAddr = address(0);
 
-    string public constant TEST_URI =
-        "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
+    string public constant TEST_URI = "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
 
     function setUp() public {
         marketplace = new NFTMarketplaceCore();
@@ -49,25 +48,14 @@ contract NFTMarketplaceCoreTest is Test {
         vm.prank(seller);
         marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
 
-        NFTMarketplaceData.Listing memory listing = marketplace.getListing(
-            address(commonNFT),
-            0
-        );
+        NFTMarketplaceData.Listing memory listing = marketplace.getListing(address(commonNFT), 0);
         assertEq(listing.seller, seller);
         assertEq(listing.priceWei, 0.5 ether);
         assertTrue(listing.isActive);
     }
 
     function test_ListTicketNFT_Success() public {
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            block.timestamp + 1 days,
-            organizer,
-            true,
-            1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, true, 1 ether);
 
         vm.prank(seller);
         ticketNFT.approve(address(marketplace), 0);
@@ -75,12 +63,8 @@ contract NFTMarketplaceCoreTest is Test {
         vm.prank(seller);
         marketplace.listNFT(address(ticketNFT), 0, 0.5 ether, 1 days);
 
-        NFTMarketplaceData.Listing memory listing = marketplace.getListing(
-            address(ticketNFT),
-            0
-        );
-        NFTMarketplaceData.Listing memory orderListing = marketplace
-            .getListingByOrderId(0);
+        NFTMarketplaceData.Listing memory listing = marketplace.getListing(address(ticketNFT), 0);
+        NFTMarketplaceData.Listing memory orderListing = marketplace.getListingByOrderId(0);
 
         assertEq(listing.orderId, 0);
         assertEq(listing.seller, seller);
@@ -123,15 +107,7 @@ contract NFTMarketplaceCoreTest is Test {
     }
 
     function test_ListTicket_RevertIfUsed() public {
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            block.timestamp + 1 days,
-            organizer,
-            true,
-            1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, true, 1 ether);
 
         vm.prank(organizer);
         ticketNFT.useTicket(0);
@@ -146,15 +122,7 @@ contract NFTMarketplaceCoreTest is Test {
 
     function test_ListTicket_RevertIfExpired() public {
         uint256 expireTime = block.timestamp + 1 hours;
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            expireTime,
-            organizer,
-            true,
-            1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, expireTime, organizer, true, 1 ether);
 
         vm.prank(seller);
         ticketNFT.approve(address(marketplace), 0);
@@ -166,15 +134,7 @@ contract NFTMarketplaceCoreTest is Test {
     }
 
     function test_ListTicket_RevertIfResaleNotAllowed() public {
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            block.timestamp + 1 days,
-            organizer,
-            false,
-            1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, false, 1 ether);
 
         vm.prank(seller);
         ticketNFT.approve(address(marketplace), 0);
@@ -185,15 +145,7 @@ contract NFTMarketplaceCoreTest is Test {
     }
 
     function test_ListTicket_RevertIfPriceExceedsMaxResale() public {
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            block.timestamp + 1 days,
-            organizer,
-            true,
-            0.1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, true, 0.1 ether);
 
         vm.prank(seller);
         ticketNFT.approve(address(marketplace), 0);
@@ -220,15 +172,7 @@ contract NFTMarketplaceCoreTest is Test {
     }
 
     function test_BuyTicket_Success() public {
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            block.timestamp + 1 days,
-            organizer,
-            true,
-            1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, true, 1 ether);
 
         vm.prank(seller);
         ticketNFT.approve(address(marketplace), 0);
@@ -290,15 +234,7 @@ contract NFTMarketplaceCoreTest is Test {
     }
 
     function test_BuyTicket_RevertIfUsedAfterListing() public {
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            block.timestamp + 1 days,
-            organizer,
-            true,
-            1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, true, 1 ether);
 
         vm.prank(seller);
         ticketNFT.approve(address(marketplace), 0);
@@ -316,15 +252,7 @@ contract NFTMarketplaceCoreTest is Test {
 
     function test_BuyTicket_RevertIfExpiredAfterListing() public {
         uint256 expireTime = block.timestamp + 1 hours;
-        ticketNFT.mintTicketNFT(
-            seller,
-            TEST_URI,
-            1,
-            expireTime,
-            organizer,
-            true,
-            1 ether
-        );
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, expireTime, organizer, true, 1 ether);
 
         vm.prank(seller);
         ticketNFT.approve(address(marketplace), 0);
@@ -350,10 +278,7 @@ contract NFTMarketplaceCoreTest is Test {
         vm.prank(seller);
         marketplace.cancelListing(address(commonNFT), 0);
 
-        NFTMarketplaceData.Listing memory listing = marketplace.getListing(
-            address(commonNFT),
-            0
-        );
+        NFTMarketplaceData.Listing memory listing = marketplace.getListing(address(commonNFT), 0);
 
         assertEq(listing.isActive, false);
     }
