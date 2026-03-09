@@ -7,6 +7,30 @@ import "../src/CommonNFT.sol";
 import "../src/TicketNFT.sol";
 import "../src/NFTMarketplaceData.sol";
 
+contract WithdrawReentrancyAttacker {
+    NFTMarketplaceCore public marketplace;
+    bool public attemptedReentry;
+
+    constructor(NFTMarketplaceCore _marketplace) {
+        marketplace = _marketplace;
+    }
+
+    receive() external payable {
+        if (!attemptedReentry) {
+            attemptedReentry = true;
+            try marketplace.withdrawProceeds() {} catch {}
+        }
+    }
+
+    function withdraw() external {
+        marketplace.withdrawProceeds();
+    }
+
+    function onERC721Received(address, address, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+}
+
 contract NFTMarketplaceCoreTest is Test {
     NFTMarketplaceCore public marketplace;
     CommonNFT public commonNFT;
@@ -106,6 +130,20 @@ contract NFTMarketplaceCoreTest is Test {
         marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
     }
 
+    function test_ListNFT_RevertIfAlreadyListed() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(seller);
+        vm.expectRevert(NFTMarketplace__AlreadyListed.selector);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+    }
+
     function test_ListTicket_RevertIfUsed() public {
         ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, true, 1 ether);
 
@@ -168,7 +206,8 @@ contract NFTMarketplaceCoreTest is Test {
         marketplace.buyNFT{value: 0.5 ether}(address(commonNFT), 0);
 
         assertEq(commonNFT.ownerOf(0), buyer);
-        assertEq(seller.balance, sellerBalanceBefore + 0.5 ether);
+        assertEq(seller.balance, sellerBalanceBefore);
+        assertEq(marketplace.pendingWithdrawals(seller), 0.5 ether);
     }
 
     function test_BuyTicket_Success() public {
@@ -186,7 +225,85 @@ contract NFTMarketplaceCoreTest is Test {
         marketplace.buyNFT{value: 0.5 ether}(address(ticketNFT), 0);
 
         assertEq(ticketNFT.ownerOf(0), buyer);
+        assertEq(seller.balance, sellerBalanceBefore);
+        assertEq(marketplace.pendingWithdrawals(seller), 0.5 ether);
+    }
+
+    function test_BuyNFT_AccrueBuyerRefundIfOverpaid() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(buyer);
+        marketplace.buyNFT{value: 1 ether}(address(commonNFT), 0);
+
+        assertEq(marketplace.pendingWithdrawals(seller), 0.5 ether);
+        assertEq(marketplace.pendingWithdrawals(buyer), 0.5 ether);
+    }
+
+    function test_WithdrawProceeds_SellerSuccess() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(buyer);
+        marketplace.buyNFT{value: 0.5 ether}(address(commonNFT), 0);
+
+        uint256 sellerBalanceBefore = seller.balance;
+        vm.prank(seller);
+        marketplace.withdrawProceeds();
+
+        assertEq(marketplace.pendingWithdrawals(seller), 0);
         assertEq(seller.balance, sellerBalanceBefore + 0.5 ether);
+    }
+
+    function test_WithdrawProceeds_BuyerRefundSuccess() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(buyer);
+        marketplace.buyNFT{value: 1 ether}(address(commonNFT), 0);
+
+        uint256 buyerBalanceBefore = buyer.balance;
+        vm.prank(buyer);
+        marketplace.withdrawProceeds();
+
+        assertEq(marketplace.pendingWithdrawals(buyer), 0);
+        assertEq(buyer.balance, buyerBalanceBefore + 0.5 ether);
+    }
+
+    function test_WithdrawProceeds_RevertIfNoProceeds() public {
+        vm.prank(outsider);
+        vm.expectRevert(NFTMarketplace__NoProceedsToWithdraw.selector);
+        marketplace.withdrawProceeds();
+    }
+
+    function test_WithdrawProceeds_ReentrancyBlocked() public {
+        WithdrawReentrancyAttacker attacker = new WithdrawReentrancyAttacker(marketplace);
+
+        commonNFT.mintCommonNFT(address(attacker), TEST_URI);
+        vm.prank(address(attacker));
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(address(attacker));
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(buyer);
+        marketplace.buyNFT{value: 0.5 ether}(address(commonNFT), 0);
+
+        assertEq(marketplace.pendingWithdrawals(address(attacker)), 0.5 ether);
+
+        attacker.withdraw();
+
+        assertTrue(attacker.attemptedReentry());
+        assertEq(marketplace.pendingWithdrawals(address(attacker)), 0);
+        assertEq(address(attacker).balance, 0.5 ether);
     }
 
     function test_BuyNFT_RevertIfNotEnoughETH() public {

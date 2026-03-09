@@ -27,6 +27,9 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
             revert NFTMarketplace__NFTNotOwnedBySender();
         }
         if (priceWei <= 0) revert NFTMarketplace__PriceMustBeGreaterThanZero();
+        if (listings[nftContract][tokenId].isActive) {
+            revert NFTMarketplace__AlreadyListed();
+        }
 
         bool isApproved = ERC721(nftContract).getApproved(tokenId) == address(this)
             || ERC721(nftContract).isApprovedForAll(msg.sender, address(this));
@@ -91,15 +94,28 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
         listing.isActive = false;
         orderIdToListings[listing.orderId].isActive = false;
 
-        (bool okSeller,) = payable(seller).call{value: priceWei}("");
-        if (!okSeller) revert NFTMarketplace__SellerTransferFailed();
-        if (msg.value > priceWei) {
-            (bool okBuyer,) = payable(msg.sender).call{value: msg.value - priceWei}("");
-            if (!okBuyer) revert NFTMarketplace__BuyerTransferFailed();
-        }
         ERC721(nftContract).safeTransferFrom(seller, msg.sender, tokenId);
+        pendingWithdrawals[seller] += priceWei;
+        emit ProceedsAccrued(seller, priceWei);
+
+        if (msg.value > priceWei) {
+            uint256 refund = msg.value - priceWei;
+            pendingWithdrawals[msg.sender] += refund;
+            emit ProceedsAccrued(msg.sender, refund);
+        }
 
         emit NFTSold(nftContract, tokenId, listing.orderId, seller, msg.sender, priceWei, block.timestamp);
+    }
+
+    function withdrawProceeds() external nonReentrant {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        if (amount == 0) revert NFTMarketplace__NoProceedsToWithdraw();
+
+        pendingWithdrawals[msg.sender] = 0;
+        (bool ok,) = payable(msg.sender).call{value: amount}("");
+        if (!ok) revert NFTMarketplace__WithdrawTransferFailed();
+
+        emit ProceedsWithdrawn(msg.sender, amount);
     }
 
     function getListingByOrderId(uint256 orderId) external view returns (Listing memory) {
