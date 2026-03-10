@@ -27,7 +27,8 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
             revert NFTMarketplace__NFTNotOwnedBySender();
         }
         if (priceWei <= 0) revert NFTMarketplace__PriceMustBeGreaterThanZero();
-        if (listings[nftContract][tokenId].isActive) {
+        Listing memory previousListing = listings[nftContract][tokenId];
+        if (previousListing.isActive && previousListing.expireTime >= block.timestamp) {
             revert NFTMarketplace__AlreadyListed();
         }
 
