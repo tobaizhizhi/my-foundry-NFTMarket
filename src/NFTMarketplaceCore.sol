@@ -8,7 +8,24 @@ import "./NFTMarketplaceData.sol";
 import "./interfaces/ITicketNFT.sol";
 
 contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
-    constructor() Ownable(msg.sender) {}
+    constructor() Ownable(msg.sender) {
+        feeRecipient = msg.sender;
+        platformFeeBps = 0;
+    }
+
+    function setPlatformFee(uint96 newFeeBps, address newFeeRecipient) external onlyOwner {
+        if (newFeeRecipient == address(0)) {
+            revert NFTMarketplace__InvalidFeeRecipient();
+        }
+        if (newFeeBps > MAX_PLATFORM_FEE_BPS) {
+            revert NFTMarketplace__InvalidPlatformFeeBps();
+        }
+
+        platformFeeBps = newFeeBps;
+        feeRecipient = newFeeRecipient;
+
+        emit PlatformFeeUpdated(newFeeBps, newFeeRecipient);
+    }
 
     function setTicketContract(address nftContract, bool enabled) external onlyOwner {
         if (nftContract == address(0)) {
@@ -27,9 +44,14 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
             revert NFTMarketplace__NFTNotOwnedBySender();
         }
         if (priceWei <= 0) revert NFTMarketplace__PriceMustBeGreaterThanZero();
-        Listing memory previousListing = listings[nftContract][tokenId];
-        if (previousListing.isActive && previousListing.expireTime >= block.timestamp) {
-            revert NFTMarketplace__AlreadyListed();
+        Listing storage previousListing = listings[nftContract][tokenId];
+        if (previousListing.isActive) {
+            if (block.timestamp < previousListing.expireTime) {
+                revert NFTMarketplace__AlreadyListed();
+            }
+            // Keep orderId index consistent when an expired active listing is replaced.
+            orderIdToListings[previousListing.orderId].isActive = false;
+            previousListing.isActive = false;
         }
 
         bool isApproved = ERC721(nftContract).getApproved(tokenId) == address(this)
@@ -78,7 +100,7 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
     function updateListingPrice(address nftContract, uint256 tokenId, uint256 newPriceWei) external {
         NFTMarketplaceData.Listing storage listing = listings[nftContract][tokenId];
         if (!listing.isActive) revert NFTMarketplace__ListingNotActive();
-        if (listing.expireTime < block.timestamp) {
+        if (block.timestamp >= listing.expireTime) {
             revert NFTMarketplace__ListingExpired();
         }
         if (listing.seller != msg.sender) {
@@ -100,7 +122,7 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
         address seller = listing.seller;
         uint256 priceWei = listing.priceWei;
 
-        if (listing.expireTime < block.timestamp) {
+        if (block.timestamp >= listing.expireTime) {
             revert NFTMarketplace__ListingExpired();
         }
         if (!listing.isActive) revert NFTMarketplace__ListingNotActive();
@@ -116,8 +138,15 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
         orderIdToListings[listing.orderId].isActive = false;
 
         ERC721(nftContract).safeTransferFrom(seller, msg.sender, tokenId);
-        pendingWithdrawals[seller] += priceWei;
-        emit ProceedsAccrued(seller, priceWei);
+        uint256 platformFee = (priceWei * platformFeeBps) / FEE_BPS_DENOMINATOR;
+        uint256 sellerProceeds = priceWei - platformFee;
+        pendingWithdrawals[seller] += sellerProceeds;
+        emit ProceedsAccrued(seller, sellerProceeds);
+
+        if (platformFee > 0) {
+            pendingWithdrawals[feeRecipient] += platformFee;
+            emit ProceedsAccrued(feeRecipient, platformFee);
+        }
 
         if (msg.value > priceWei) {
             uint256 refund = msg.value - priceWei;
@@ -164,7 +193,7 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
             ITicketNFT(nftContract).ticketAttributes(tokenId);
 
         if (isUsed) revert NFTMarketplace__TicketAlreadyUsed();
-        if (block.timestamp > expireTime) {
+        if (block.timestamp >= expireTime) {
             revert NFTMarketplace__TicketExpiredForTrade();
         }
         if (!resaleAllowed) revert NFTMarketplace__TicketResaleNotAllowed();

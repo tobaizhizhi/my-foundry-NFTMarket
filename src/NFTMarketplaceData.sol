@@ -18,8 +18,13 @@ error NFTMarketplace__TicketResaleNotAllowed();
 error NFTMarketplace__TicketPriceExceedsMaxResale();
 error NFTMarketplace__NoProceedsToWithdraw();
 error NFTMarketplace__WithdrawTransferFailed();
+error NFTMarketplace__InvalidPlatformFeeBps();
+error NFTMarketplace__InvalidFeeRecipient();
 
 contract NFTMarketplaceData {
+    uint96 public constant FEE_BPS_DENOMINATOR = 10_000;
+    uint96 public constant MAX_PLATFORM_FEE_BPS = 1_000; // 10%
+
     enum OrderType {
         FixedPrice,
         Offer
@@ -39,6 +44,8 @@ contract NFTMarketplaceData {
     mapping(uint256 => Listing) public orderIdToListings;
     mapping(address => bool) public isTicketContract;
     mapping(address => uint256) public pendingWithdrawals;
+    uint96 public platformFeeBps;
+    address public feeRecipient;
     uint256 public nextOrderId;
 
     event NFTListed(
@@ -73,6 +80,7 @@ contract NFTMarketplaceData {
         uint256 timestamp
     );
 
+    event PlatformFeeUpdated(uint96 newFeeBps, address indexed newFeeRecipient);
     event TicketContractUpdated(address indexed nftContract, bool enabled);
     event ProceedsAccrued(address indexed user, uint256 amount);
     event ProceedsWithdrawn(address indexed user, uint256 amount);
