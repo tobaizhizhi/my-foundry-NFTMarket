@@ -64,6 +64,15 @@ contract NFTMarketplaceData {
         uint256 timestamp
     );
 
+    event ListingPriceUpdated(
+        address indexed nftContract,
+        uint256 indexed tokenId,
+        uint256 indexed orderId,
+        address seller,
+        uint256 newPriceWei,
+        uint256 timestamp
+    );
+
     event TicketContractUpdated(address indexed nftContract, bool enabled);
     event ProceedsAccrued(address indexed user, uint256 amount);
     event ProceedsWithdrawn(address indexed user, uint256 amount);

@@ -213,6 +213,87 @@ contract NFTMarketplaceCoreTest is Test {
         marketplace.listNFT(address(ticketNFT), 0, 0.2 ether, 1 days);
     }
 
+    function test_UpdateListingPrice_Success() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(seller);
+        marketplace.updateListingPrice(address(commonNFT), 0, 0.8 ether);
+
+        NFTMarketplaceData.Listing memory listing = marketplace.getListing(address(commonNFT), 0);
+        NFTMarketplaceData.Listing memory orderListing = marketplace.getListingByOrderId(listing.orderId);
+
+        assertEq(listing.priceWei, 0.8 ether);
+        assertEq(orderListing.priceWei, 0.8 ether);
+    }
+
+    function test_UpdateListingPrice_RevertIfNotSeller() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(outsider);
+        vm.expectRevert(NFTMarketplace__NotListingSeller.selector);
+        marketplace.updateListingPrice(address(commonNFT), 0, 0.8 ether);
+    }
+
+    function test_UpdateListingPrice_RevertIfListingNotActive() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(seller);
+        marketplace.cancelListing(address(commonNFT), 0);
+
+        vm.prank(seller);
+        vm.expectRevert(NFTMarketplace__ListingNotActive.selector);
+        marketplace.updateListingPrice(address(commonNFT), 0, 0.8 ether);
+    }
+
+    function test_UpdateListingPrice_RevertIfExpired() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.warp(block.timestamp + 1 days + 1);
+        vm.prank(seller);
+        vm.expectRevert(NFTMarketplace__ListingExpired.selector);
+        marketplace.updateListingPrice(address(commonNFT), 0, 0.8 ether);
+    }
+
+    function test_UpdateListingPrice_RevertIfNewPriceZero() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(seller);
+        vm.expectRevert(NFTMarketplace__PriceMustBeGreaterThanZero.selector);
+        marketplace.updateListingPrice(address(commonNFT), 0, 0);
+    }
+
+    function test_UpdateListingPrice_RevertIfTicketPriceExceedsMaxResale() public {
+        ticketNFT.mintTicketNFT(seller, TEST_URI, 1, block.timestamp + 1 days, organizer, true, 0.6 ether);
+        vm.prank(seller);
+        ticketNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(ticketNFT), 0, 0.5 ether, 1 days);
+
+        vm.prank(seller);
+        vm.expectRevert(NFTMarketplace__TicketPriceExceedsMaxResale.selector);
+        marketplace.updateListingPrice(address(ticketNFT), 0, 0.7 ether);
+    }
+
     function test_BuyCommonNFT_Success() public {
         commonNFT.mintCommonNFT(seller, TEST_URI);
         vm.prank(seller);

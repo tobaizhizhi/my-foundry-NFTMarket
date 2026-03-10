@@ -75,6 +75,26 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
         emit ListingCancelled(nftContract, tokenId, listing.orderId, msg.sender);
     }
 
+    function updateListingPrice(address nftContract, uint256 tokenId, uint256 newPriceWei) external {
+        NFTMarketplaceData.Listing storage listing = listings[nftContract][tokenId];
+        if (!listing.isActive) revert NFTMarketplace__ListingNotActive();
+        if (listing.expireTime < block.timestamp) {
+            revert NFTMarketplace__ListingExpired();
+        }
+        if (listing.seller != msg.sender) {
+            revert NFTMarketplace__NotListingSeller();
+        }
+        if (newPriceWei <= 0) {
+            revert NFTMarketplace__PriceMustBeGreaterThanZero();
+        }
+        _validateTicketTrade(nftContract, tokenId, newPriceWei);
+
+        listing.priceWei = newPriceWei;
+        orderIdToListings[listing.orderId].priceWei = newPriceWei;
+
+        emit ListingPriceUpdated(nftContract, tokenId, listing.orderId, msg.sender, newPriceWei, block.timestamp);
+    }
+
     function buyNFT(address nftContract, uint256 tokenId) external payable nonReentrant {
         Listing storage listing = listings[nftContract][tokenId];
         address seller = listing.seller;
