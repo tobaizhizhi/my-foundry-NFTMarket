@@ -2,12 +2,16 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import "./NFTMarketplaceData.sol";
 import "./interfaces/ITicketNFT.sol";
 
 contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
+    using ERC165Checker for address;
+
     constructor() Ownable(msg.sender) {
         feeRecipient = msg.sender;
         platformFeeBps = 0;
@@ -40,16 +44,19 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
         if (nftContract == address(0)) {
             revert NFTMarketplace__InvalidNFTContract();
         }
-        if (ERC721(nftContract).ownerOf(tokenId) != msg.sender) {
+        address currentOwner = ERC721(nftContract).ownerOf(tokenId);
+        if (currentOwner != msg.sender) {
             revert NFTMarketplace__NFTNotOwnedBySender();
         }
         if (priceWei <= 0) revert NFTMarketplace__PriceMustBeGreaterThanZero();
         Listing storage previousListing = listings[nftContract][tokenId];
         if (previousListing.isActive) {
-            if (block.timestamp < previousListing.expireTime) {
+            bool previousListingStillValid =
+                block.timestamp < previousListing.expireTime && previousListing.seller == currentOwner;
+            if (previousListingStillValid) {
                 revert NFTMarketplace__AlreadyListed();
             }
-            // Keep orderId index consistent when an expired active listing is replaced.
+            // Keep orderId index consistent when replacing an expired or stale listing.
             orderIdToListings[previousListing.orderId].isActive = false;
             previousListing.isActive = false;
         }
@@ -137,11 +144,27 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
         listing.isActive = false;
         orderIdToListings[listing.orderId].isActive = false;
 
-        ERC721(nftContract).safeTransferFrom(seller, msg.sender, tokenId);
         uint256 platformFee = (priceWei * platformFeeBps) / FEE_BPS_DENOMINATOR;
-        uint256 sellerProceeds = priceWei - platformFee;
+
+        (address royaltyRecipient, uint256 royaltyAmount) = _getRoyaltyInfo(nftContract, tokenId, priceWei);
+
+        if (royaltyAmount > 0 && royaltyRecipient == address(0)) {
+            revert NFTMarketplace__InvalidRoyaltyRecipient();
+        }
+        if (royaltyAmount > priceWei - platformFee) {
+            revert NFTMarketplace__PayoutExceedsSalePrice();
+        }
+
+        uint256 sellerProceeds = priceWei - platformFee - royaltyAmount;
+        ERC721(nftContract).safeTransferFrom(seller, msg.sender, tokenId);
+
         pendingWithdrawals[seller] += sellerProceeds;
         emit ProceedsAccrued(seller, sellerProceeds);
+
+        if (royaltyAmount > 0) {
+            pendingWithdrawals[royaltyRecipient] += royaltyAmount;
+            emit ProceedsAccrued(royaltyRecipient, royaltyAmount);
+        }
 
         if (platformFee > 0) {
             pendingWithdrawals[feeRecipient] += platformFee;
@@ -182,6 +205,18 @@ contract NFTMarketplaceCore is ReentrancyGuard, Ownable, NFTMarketplaceData {
 
     function getListingsBySeller(address seller) external view returns (Listing[] memory) {
         //TODO改为链下
+    }
+
+    function _getRoyaltyInfo(address nftContract, uint256 tokenId, uint256 salePrice)
+        internal
+        view
+        returns (address royaltyRecipient, uint256 royaltyAmount)
+    {
+        if (!nftContract.supportsInterface(type(IERC2981).interfaceId)) {
+            return (address(0), 0);
+        }
+
+        return IERC2981(nftContract).royaltyInfo(tokenId, salePrice);
     }
 
     function _validateTicketTrade(address nftContract, uint256 tokenId, uint256 priceWei) internal view {

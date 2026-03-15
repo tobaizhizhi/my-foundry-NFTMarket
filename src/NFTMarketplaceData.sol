@@ -20,6 +20,8 @@ error NFTMarketplace__NoProceedsToWithdraw();
 error NFTMarketplace__WithdrawTransferFailed();
 error NFTMarketplace__InvalidPlatformFeeBps();
 error NFTMarketplace__InvalidFeeRecipient();
+error NFTMarketplace__InvalidRoyaltyRecipient();
+error NFTMarketplace__PayoutExceedsSalePrice();
 
 contract NFTMarketplaceData {
     uint96 public constant FEE_BPS_DENOMINATOR = 10_000;

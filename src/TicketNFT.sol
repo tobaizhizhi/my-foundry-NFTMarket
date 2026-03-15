@@ -72,7 +72,7 @@ contract TicketNFT is ERC721, Ownable, ERC721Enumerable, ReentrancyGuard {
     function useTicket(uint256 tokenId) external {
         _requireTokenExists(tokenId);
         TicketAttributes storage attr = ticketAttributes[tokenId];
-        if (block.timestamp > attr.expireTime) {
+        if (block.timestamp >= attr.expireTime) {
             revert TicketNFT__TicketExpired();
         }
         if (attr.isUsed) revert TicketNFT__TicketAlreadyUsed();

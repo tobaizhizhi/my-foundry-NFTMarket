@@ -139,6 +139,18 @@ contract TicketNFTTest is Test {
         ticketNFT.useTicket(0);
     }
 
+    function test_UseTicketNFT_ExpiredAtBoundaryFail() public {
+        vm.prank(owner);
+        ticketNFT.mintTicketNFT(
+            alice, TICKET_URI, EVENT_ID, TICKET_EXPIRE_TIME, organizer, RESALE_ALLOWED, MAX_RESALE_PRICE
+        );
+
+        vm.warp(TICKET_EXPIRE_TIME);
+        vm.prank(organizer);
+        vm.expectRevert(TicketNFT__TicketExpired.selector);
+        ticketNFT.useTicket(0);
+    }
+
     function test_UseTicketNFT_TokenNotExistsFail() public {
         vm.prank(organizer);
         vm.expectRevert(TicketNFT__TokenNotExists.selector);

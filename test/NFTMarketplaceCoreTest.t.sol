@@ -2,6 +2,9 @@
 pragma solidity ^0.8.20;
 
 import "forge-std/Test.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "../src/NFTMarketplaceCore.sol";
 import "../src/CommonNFT.sol";
 import "../src/TicketNFT.sol";
@@ -31,15 +34,39 @@ contract WithdrawReentrancyAttacker {
     }
 }
 
+contract MockRoyaltyNFT is ERC721, ERC2981, Ownable {
+    uint256 public nextTokenId;
+
+    constructor() ERC721("MockRoyaltyNFT", "MRNFT") Ownable(msg.sender) {}
+
+    function mint(address to) external onlyOwner returns (uint256 tokenId) {
+        tokenId = nextTokenId;
+        _safeMint(to, tokenId);
+        unchecked {
+            nextTokenId++;
+        }
+    }
+
+    function setRoyalty(address receiver, uint96 royaltyBps) external onlyOwner {
+        _setDefaultRoyalty(receiver, royaltyBps);
+    }
+
+    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC2981) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
+}
+
 contract NFTMarketplaceCoreTest is Test {
     NFTMarketplaceCore public marketplace;
     CommonNFT public commonNFT;
     TicketNFT public ticketNFT;
+    MockRoyaltyNFT public royaltyNFT;
 
     address public seller = address(1);
     address public buyer = address(2);
     address public organizer = address(3);
     address public outsider = address(4);
+    address public royaltyReceiver = address(5);
     address public zeroAddr = address(0);
 
     string public constant TEST_URI = "ipfs://bafkreihgcwbsvuucmehs4qqkkl5pbgd4rmytd3jfkrmbejx32ns25vtp5m/0.json";
@@ -48,6 +75,7 @@ contract NFTMarketplaceCoreTest is Test {
         marketplace = new NFTMarketplaceCore();
         commonNFT = new CommonNFT();
         ticketNFT = new TicketNFT();
+        royaltyNFT = new MockRoyaltyNFT();
 
         marketplace.setTicketContract(address(ticketNFT), true);
         vm.deal(buyer, 10 ether);
@@ -205,6 +233,31 @@ contract NFTMarketplaceCoreTest is Test {
 
         assertFalse(oldOrder.isActive);
         assertGt(currentListing.orderId, firstListing.orderId);
+        assertTrue(currentListing.isActive);
+    }
+
+    function test_ListNFT_AllowNewOwnerRelistWhenPreviousSellerTransferredNFT() public {
+        commonNFT.mintCommonNFT(seller, TEST_URI);
+        vm.prank(seller);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(seller);
+        marketplace.listNFT(address(commonNFT), 0, 0.5 ether, 1 days);
+
+        NFTMarketplaceData.Listing memory firstListing = marketplace.getListing(address(commonNFT), 0);
+
+        vm.prank(seller);
+        commonNFT.safeTransferFrom(seller, organizer, 0);
+        vm.prank(organizer);
+        commonNFT.approve(address(marketplace), 0);
+        vm.prank(organizer);
+        marketplace.listNFT(address(commonNFT), 0, 0.8 ether, 1 days);
+
+        NFTMarketplaceData.Listing memory oldOrder = marketplace.getListingByOrderId(firstListing.orderId);
+        NFTMarketplaceData.Listing memory currentListing = marketplace.getListing(address(commonNFT), 0);
+
+        assertFalse(oldOrder.isActive);
+        assertEq(currentListing.seller, organizer);
+        assertEq(currentListing.priceWei, 0.8 ether);
         assertTrue(currentListing.isActive);
     }
 
@@ -418,6 +471,53 @@ contract NFTMarketplaceCoreTest is Test {
         assertEq(marketplace.pendingWithdrawals(organizer), 0.05 ether);
     }
 
+    function test_BuyRoyaltyNFT_SuccessWithoutRoyaltyConfigured() public {
+        uint256 tokenId = royaltyNFT.mint(seller);
+        vm.prank(seller);
+        royaltyNFT.approve(address(marketplace), tokenId);
+        vm.prank(seller);
+        marketplace.listNFT(address(royaltyNFT), tokenId, 1 ether, 1 days);
+
+        vm.prank(buyer);
+        marketplace.buyNFT{value: 1 ether}(address(royaltyNFT), tokenId);
+
+        assertEq(marketplace.pendingWithdrawals(seller), 1 ether);
+        assertEq(marketplace.pendingWithdrawals(royaltyReceiver), 0);
+    }
+
+    function test_BuyRoyaltyNFT_AccrueRoyaltyPlatformFeeAndSellerProceeds() public {
+        marketplace.setPlatformFee(500, organizer); // 5%
+        royaltyNFT.setRoyalty(royaltyReceiver, 1000); // 10%
+
+        uint256 tokenId = royaltyNFT.mint(seller);
+        vm.prank(seller);
+        royaltyNFT.approve(address(marketplace), tokenId);
+        vm.prank(seller);
+        marketplace.listNFT(address(royaltyNFT), tokenId, 1 ether, 1 days);
+
+        vm.prank(buyer);
+        marketplace.buyNFT{value: 1 ether}(address(royaltyNFT), tokenId);
+
+        assertEq(marketplace.pendingWithdrawals(seller), 0.85 ether);
+        assertEq(marketplace.pendingWithdrawals(organizer), 0.05 ether);
+        assertEq(marketplace.pendingWithdrawals(royaltyReceiver), 0.1 ether);
+    }
+
+    function test_BuyRoyaltyNFT_RevertIfPayoutExceedsSalePrice() public {
+        marketplace.setPlatformFee(500, organizer); // 5%
+        royaltyNFT.setRoyalty(royaltyReceiver, 10_000); // 100%
+
+        uint256 tokenId = royaltyNFT.mint(seller);
+        vm.prank(seller);
+        royaltyNFT.approve(address(marketplace), tokenId);
+        vm.prank(seller);
+        marketplace.listNFT(address(royaltyNFT), tokenId, 1 ether, 1 days);
+
+        vm.prank(buyer);
+        vm.expectRevert(NFTMarketplace__PayoutExceedsSalePrice.selector);
+        marketplace.buyNFT{value: 1 ether}(address(royaltyNFT), tokenId);
+    }
+
     function test_WithdrawProceeds_SellerSuccess() public {
         commonNFT.mintCommonNFT(seller, TEST_URI);
         vm.prank(seller);
@@ -472,6 +572,26 @@ contract NFTMarketplaceCoreTest is Test {
 
         assertEq(marketplace.pendingWithdrawals(organizer), 0);
         assertEq(organizer.balance, organizerBalanceBefore + 0.05 ether);
+    }
+
+    function test_WithdrawProceeds_RoyaltyRecipientSuccess() public {
+        royaltyNFT.setRoyalty(royaltyReceiver, 1000); // 10%
+
+        uint256 tokenId = royaltyNFT.mint(seller);
+        vm.prank(seller);
+        royaltyNFT.approve(address(marketplace), tokenId);
+        vm.prank(seller);
+        marketplace.listNFT(address(royaltyNFT), tokenId, 1 ether, 1 days);
+
+        vm.prank(buyer);
+        marketplace.buyNFT{value: 1 ether}(address(royaltyNFT), tokenId);
+
+        uint256 royaltyReceiverBalanceBefore = royaltyReceiver.balance;
+        vm.prank(royaltyReceiver);
+        marketplace.withdrawProceeds();
+
+        assertEq(marketplace.pendingWithdrawals(royaltyReceiver), 0);
+        assertEq(royaltyReceiver.balance, royaltyReceiverBalanceBefore + 0.1 ether);
     }
 
     function test_WithdrawProceeds_RevertIfNoProceeds() public {
